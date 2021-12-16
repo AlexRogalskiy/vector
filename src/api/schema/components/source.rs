@@ -18,6 +18,7 @@ pub enum SourceOutputType {
     Any,
     Log,
     Metric,
+    Trace,
 }
 
 impl From<DataType> for SourceOutputType {
@@ -25,7 +26,8 @@ impl From<DataType> for SourceOutputType {
         match data_type {
             DataType::Metric => SourceOutputType::Metric,
             DataType::Log => SourceOutputType::Log,
-            DataType::Any => SourceOutputType::Any,
+            DataType::Trace => SourceOutputType::Trace,
+            _ => SourceOutputType::Any,
         }
     }
 }

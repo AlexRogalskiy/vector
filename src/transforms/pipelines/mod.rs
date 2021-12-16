@@ -243,11 +243,11 @@ impl TransformConfig for PipelinesConfig {
     }
 
     fn input_type(&self) -> DataType {
-        DataType::Any
+        DataType::all()
     }
 
     fn output_type(&self) -> DataType {
-        DataType::Any
+        DataType::all()
     }
 
     fn transform_type(&self) -> &'static str {

@@ -44,11 +44,11 @@ impl TransformConfig for FilterConfig {
     }
 
     fn input_type(&self) -> DataType {
-        DataType::Any
+        DataType::all()
     }
 
     fn output_type(&self) -> DataType {
-        DataType::Any
+        DataType::all()
     }
 
     fn enable_concurrency(&self) -> bool {
