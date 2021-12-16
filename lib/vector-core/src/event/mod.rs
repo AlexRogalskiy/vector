@@ -49,6 +49,7 @@ pub const PARTIAL: &str = "_partial";
 pub enum Event {
     Log(LogEvent),
     Metric(Metric),
+    Trace(LogEvent),
 }
 
 impl ByteSizeOf for Event {
@@ -56,6 +57,7 @@ impl ByteSizeOf for Event {
         match self {
             Event::Log(log_event) => log_event.allocated_bytes(),
             Event::Metric(metric_event) => metric_event.allocated_bytes(),
+            Event::Trace(trace_event) => trace_event.allocated_bytes(),
         }
     }
 }
@@ -65,6 +67,7 @@ impl Finalizable for Event {
         match self {
             Event::Log(log) => log.take_finalizers(),
             Event::Metric(metric) => metric.take_finalizers(),
+            Event::Trace(trace) => trace.take_finalizers(),
         }
     }
 }
@@ -171,6 +174,7 @@ impl Event {
         match self {
             Self::Log(log) => log.metadata(),
             Self::Metric(metric) => metric.metadata(),
+            Self::Trace(trace) => trace.metadata(),
         }
     }
 
@@ -178,6 +182,7 @@ impl Event {
         match self {
             Self::Log(log) => log.metadata_mut(),
             Self::Metric(metric) => metric.metadata_mut(),
+            Self::Trace(trace) => trace.metadata_mut(),
         }
     }
 
@@ -186,6 +191,7 @@ impl Event {
         match self {
             Self::Log(log) => log.into_parts().1,
             Self::Metric(metric) => metric.into_parts().2,
+            Self::Trace(trace) => trace.into_parts().1,
         }
     }
 
@@ -194,6 +200,7 @@ impl Event {
         match self {
             Self::Log(log) => log.add_finalizer(finalizer),
             Self::Metric(metric) => metric.add_finalizer(finalizer),
+            Self::Trace(trace) => trace.add_finalizer(finalizer),
         }
     }
 
@@ -201,6 +208,7 @@ impl Event {
         match self {
             Self::Log(log) => log.with_batch_notifier(batch).into(),
             Self::Metric(metric) => metric.with_batch_notifier(batch).into(),
+            Self::Trace(trace) => trace.with_batch_notifier(batch).into(),
         }
     }
 
@@ -208,6 +216,7 @@ impl Event {
         match self {
             Self::Log(log) => log.with_batch_notifier_option(batch).into(),
             Self::Metric(metric) => metric.with_batch_notifier_option(batch).into(),
+            Self::Trace(trace) => trace.with_batch_notifier_option(batch).into(),
         }
     }
 }
@@ -217,6 +226,7 @@ impl EventDataEq for Event {
         match (self, other) {
             (Self::Log(a), Self::Log(b)) => a.event_data_eq(b),
             (Self::Metric(a), Self::Metric(b)) => a.event_data_eq(b),
+            (Self::Trace(a), Self::Trace(b)) => a.event_data_eq(b),
             _ => false,
         }
     }
@@ -263,6 +273,7 @@ impl TryInto<serde_json::Value> for Event {
         match self {
             Event::Log(fields) => serde_json::to_value(fields),
             Event::Metric(metric) => serde_json::to_value(metric),
+            Event::Trace(fields) => serde_json::to_value(fields),
         }
     }
 }
@@ -369,6 +380,7 @@ impl MaybeAsLogMut for Event {
         match self {
             Event::Log(log) => Some(log),
             Event::Metric(_) => None,
+            Event::Trace(log) => Some(log),
         }
     }
 }
@@ -379,6 +391,7 @@ impl MaybeAsLogMut for Event {
 pub enum EventRef<'a> {
     Log(&'a LogEvent),
     Metric(&'a Metric),
+    Trace(&'a LogEvent),
 }
 
 impl<'a> From<&'a Event> for EventRef<'a> {
@@ -386,6 +399,7 @@ impl<'a> From<&'a Event> for EventRef<'a> {
         match event {
             Event::Log(log) => log.into(),
             Event::Metric(metric) => metric.into(),
+            Event::Trace(log) => log.into(),
         }
     }
 }
