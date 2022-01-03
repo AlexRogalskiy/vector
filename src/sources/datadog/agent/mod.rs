@@ -145,7 +145,7 @@ impl SourceConfig for DatadogAgentConfig {
     }
 
     fn output_type(&self) -> DataType {
-        DataType::Any
+        DataType::Metric | DataType::Log
     }
 
     fn source_type(&self) -> &'static str {
