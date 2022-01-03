@@ -8,3 +8,5 @@ targets:
     url: "http://localhost:9001"
   - id: lading_http_blackhole
     url: "http://localhost:9002"
+  - id: lading_tcp_gen
+    url: "http://localhost:9003"

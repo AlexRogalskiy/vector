@@ -97,12 +97,6 @@ impl From<std::io::Error> for Error {
     }
 }
 
-impl From<std::num::ParseFloatError> for Error {
-    fn from(error: std::num::ParseFloatError) -> Self {
-        Self::ParseFloat { error }
-    }
-}
-
 impl From<serde_json::Error> for Error {
     fn from(error: serde_json::Error) -> Self {
         Self::Json { error }
@@ -146,9 +140,18 @@ impl Worker {
         let mut wtr = fs::File::create(self.capture_path)?;
         for fetch_index in 0..u64::max_value() {
             for (target, url) in &self.targets {
-                // TODO must handle failures correctly
                 let request = client.get(url.clone()).build()?;
-                let body = client.execute(request).await?.text().await?;
+                let response = match client.execute(request).await {
+                    Ok(resp) => resp,
+                    Err(e) => {
+                        debug!(
+                            "Did not receive a response from {} with error: {}",
+                            target.id, e
+                        );
+                        continue;
+                    }
+                };
+                let body = response.text().await?;
                 let metric_groups = prometheus_parser::parse_text(&body)?;
 
                 if metric_groups.is_empty() {
@@ -179,7 +182,7 @@ impl Worker {
                             metric_labels: k.labels.clone(),
                             value,
                         };
-                        serde_json::to_writer(&mut wtr, &output).expect("could not serialize json");
+                        serde_json::to_writer(&mut wtr, &output)?;
                         wtr.write_all(b"\n")?;
                         wtr.flush()?;
                     }
@@ -216,6 +219,6 @@ fn main() -> Result<(), Error> {
         .build()
         .unwrap();
     let worker = Worker::new(config);
-    runtime.block_on(worker.run()).unwrap();
+    runtime.block_on(worker.run())?;
     Ok(())
 }
