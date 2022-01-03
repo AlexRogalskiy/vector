@@ -9,7 +9,7 @@ use std::{
     borrow::Cow,
     fs,
     io::{Read, Write},
-    time::Duration,
+    time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH},
 };
 use tokio::{runtime::Builder, time::sleep};
 use tracing::{debug, error};
@@ -65,6 +65,14 @@ enum Error {
     Prometheus {
         error: prometheus_parser::ParserError,
     },
+    #[snafu(display("Could not query time: {}", error))]
+    Time { error: SystemTimeError },
+}
+
+impl From<SystemTimeError> for Error {
+    fn from(error: SystemTimeError) -> Self {
+        Self::Time { error }
+    }
 }
 
 impl From<serde_yaml::Error> for Error {
@@ -139,6 +147,7 @@ impl Worker {
 
         let mut wtr = fs::File::create(self.capture_path)?;
         for fetch_index in 0..u64::max_value() {
+            let now_ms: u128 = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
             for (target, url) in &self.targets {
                 let request = client.get(url.clone()).build()?;
                 let response = match client.execute(request).await {
@@ -168,7 +177,7 @@ impl Worker {
                         GroupKind::Gauge(mm) => (soak::MetricKind::Gauge, mm),
                     };
                     for (k, v) in mm.iter() {
-                        let timestamp = k.timestamp;
+                        let timestamp = k.timestamp.map(|x| x as u128).unwrap_or(now_ms);
                         let value = v.value;
                         let output = soak::Output {
                             run_id: Cow::Borrowed(&run_id),

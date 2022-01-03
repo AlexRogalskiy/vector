@@ -53,7 +53,7 @@ pub struct Output<'a> {
     pub experiment: Cow<'a, str>,
     pub variant: Variant,
     pub target: String,
-    pub time: Option<i64>,
+    pub time: u128,
     pub fetch_index: u64,
     pub metric_name: String,
     pub metric_kind: MetricKind,
