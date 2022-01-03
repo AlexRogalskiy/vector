@@ -6892,8 +6892,8 @@ name = "soak"
 version = "0.1.0"
 dependencies = [
  "argh",
- "csv",
  "http",
+ "prometheus-parser",
  "rand 0.8.4",
  "reqwest",
  "serde",
@@ -6903,6 +6903,7 @@ dependencies = [
  "tokio",
  "tracing 0.1.29",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
