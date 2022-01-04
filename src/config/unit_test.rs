@@ -149,10 +149,8 @@ fn walk(
                 transforms.insert(key, target);
             }
             Transform::Synchronous(ref mut t) => {
-                let mut outputs = TransformOutputsBuf::new_with_capacity(
-                    target.config.named_outputs(),
-                    inputs.len(),
-                );
+                let mut outputs =
+                    TransformOutputsBuf::new_with_capacity(target.config.outputs(), inputs.len());
                 for input in inputs.clone() {
                     t.transform(input, &mut outputs)
                 }
