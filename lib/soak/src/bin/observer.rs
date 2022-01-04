@@ -7,11 +7,15 @@ use serde::Deserialize;
 use snafu::Snafu;
 use std::{
     borrow::Cow,
-    fs,
-    io::{Read, Write},
+    io::Read,
     time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH},
 };
-use tokio::{runtime::Builder, time::sleep};
+use tokio::{
+    fs,
+    io::{AsyncWriteExt, BufWriter},
+    runtime::Builder,
+    time::sleep,
+};
 use tracing::{debug, error};
 use uuid::Uuid;
 
@@ -145,7 +149,7 @@ impl Worker {
         let run_id: Uuid = Uuid::new_v4();
         let client: reqwest::Client = reqwest::Client::new();
 
-        let mut wtr = fs::File::create(self.capture_path)?;
+        let mut wtr = BufWriter::new(fs::File::create(self.capture_path).await?);
         for fetch_index in 0..u64::max_value() {
             let now_ms: u128 = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
             for (target, url) in &self.targets {
@@ -191,12 +195,13 @@ impl Worker {
                             metric_labels: k.labels.clone(),
                             value,
                         };
-                        serde_json::to_writer(&mut wtr, &output)?;
-                        wtr.write_all(b"\n")?;
-                        wtr.flush()?;
+                        let buf = serde_json::to_string(&output)?;
+                        wtr.write_all(&buf.as_bytes()).await?;
+                        wtr.write_all(b"\n").await?;
                     }
                 }
             }
+            wtr.flush().await?;
             sleep(Duration::from_secs(1)).await;
         }
         // SAFETY: The only way to reach this point is to break the above loop
