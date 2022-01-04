@@ -7,6 +7,8 @@ import glob
 import os
 import sys
 
+# TODO must also update to cope with new capture format
+
 parser = argparse.ArgumentParser(description='t-test experiments with Welch method')
 parser.add_argument('--capture-dir', type=str, help='the directory to search for capture csv files')
 parser.add_argument('--erratic-soaks', type=str, default='', help='a comma separated list of known-erratic experiments, NOT TO BE USED LIGHTLY')
