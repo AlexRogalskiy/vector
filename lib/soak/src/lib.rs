@@ -52,10 +52,10 @@ pub struct Output<'a> {
     #[serde(borrow)]
     pub experiment: Cow<'a, str>,
     pub variant: Variant,
-    pub target: String,
+    pub target: Cow<'a, str>,
     pub time: u128,
     pub fetch_index: u64,
-    pub metric_name: String,
+    pub metric_name: Cow<'a, str>,
     pub metric_kind: MetricKind,
     pub metric_labels: BTreeMap<String, String>,
     pub value: f64,
