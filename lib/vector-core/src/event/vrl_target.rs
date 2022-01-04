@@ -55,7 +55,6 @@ impl VrlTarget {
                 Box::new(std::iter::once(Event::Metric(metric))) as Box<dyn Iterator<Item = Event>>
             }
             VrlTarget::Trace(value, metadata) => {
-                // To fix
                 Box::new(value_into_traces(value, metadata)) as Box<dyn Iterator<Item = Event>>
             }
         }
@@ -327,51 +326,31 @@ impl From<Event> for VrlTarget {
     }
 }
 
-// Turn a `Value` back into `LogEvents`:
-// * In the common case, where `.` is a map, just create an event using it as the event fields.
-// * If `.` is an array, map over all of the values to create log events:
-//   * If an element is an object, create an event using that as fields.
-//   * If an element is anything else, assign to the `message` key.
-// * If `.` is anything else, assign to the `message` key.
 fn value_into_log_events(value: Value, metadata: EventMetadata) -> impl Iterator<Item = Event> {
-    match value {
-        Value::Map(object) => Box::new(std::iter::once(Event::from(LogEvent::from_parts(
-            object, metadata,
-        )))) as Box<dyn Iterator<Item = Event>>,
-        Value::Array(values) => Box::new(values.into_iter().map(move |v| match v {
-            Value::Map(object) => Event::from(LogEvent::from_parts(object, metadata.clone())),
-            v => {
-                let mut log = LogEvent::new_with_metadata(metadata.clone());
-                log.insert(log_schema().message_key(), v);
-                Event::from(log)
-            }
-        })) as Box<dyn Iterator<Item = Event>>,
-        v => {
-            let mut log = LogEvent::new_with_metadata(metadata);
-            log.insert(log_schema().message_key(), v);
-            Box::new(std::iter::once(Event::from(log))) as Box<dyn Iterator<Item = Event>>
-        }
-    }
+    value_into_logevent(value, metadata).map(Event::Log)
 }
 
-// To factorize with ^
 fn value_into_traces(value: Value, metadata: EventMetadata) -> impl Iterator<Item = Event> {
+    value_into_logevent(value, metadata).map(Event::Trace)
+}
+
+fn value_into_logevent(value: Value, metadata: EventMetadata) -> impl Iterator<Item = LogEvent> {
     match value {
-        Value::Map(object) => Box::new(std::iter::once(Event::Trace(LogEvent::from_parts(
+        Value::Map(object) => Box::new(std::iter::once(LogEvent::from_parts(
             object, metadata,
-        )))) as Box<dyn Iterator<Item = Event>>,
+        ))) as Box<dyn Iterator<Item = LogEvent>>,
         Value::Array(values) => Box::new(values.into_iter().map(move |v| match v {
-            Value::Map(object) => Event::Trace(LogEvent::from_parts(object, metadata.clone())),
+            Value::Map(object) => LogEvent::from_parts(object, metadata.clone()),
             v => {
                 let mut log = LogEvent::new_with_metadata(metadata.clone());
                 log.insert(log_schema().message_key(), v);
-                Event::Trace(log)
+                log
             }
-        })) as Box<dyn Iterator<Item = Event>>,
+        })) as Box<dyn Iterator<Item = LogEvent>>,
         v => {
             let mut log = LogEvent::new_with_metadata(metadata);
             log.insert(log_schema().message_key(), v);
-            Box::new(std::iter::once(Event::Trace(log))) as Box<dyn Iterator<Item = Event>>
+            Box::new(std::iter::once(log)) as Box<dyn Iterator<Item = LogEvent>>
         }
     }
 }
