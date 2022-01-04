@@ -1,12 +1,16 @@
 use std::convert::TryInto;
 
-use bytes::Bytes;
+use bytes::{BufMut, Bytes};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use smallvec::{smallvec, SmallVec};
+use tokio_util::codec::Encoder;
 
 use crate::{
-    codecs::decoding::{BoxedDeserializer, Deserializer, DeserializerConfig},
+    codecs::{
+        decoding::{BoxedDeserializer, Deserializer, DeserializerConfig},
+        encoding::{BoxedSerializer, SerializerConfig},
+    },
     config::log_schema,
     event::Event,
 };
@@ -77,6 +81,50 @@ impl Deserializer for JsonDeserializer {
 impl From<&JsonDeserializerConfig> for JsonDeserializer {
     fn from(_: &JsonDeserializerConfig) -> Self {
         Self
+    }
+}
+
+/// Config used to build a `JsonSerializer`.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct JsonSerializerConfig;
+
+impl JsonSerializerConfig {
+    /// Creates a new `JsonSerializerConfig`.
+    pub const fn new() -> Self {
+        Self
+    }
+}
+
+#[typetag::serde(name = "json")]
+impl SerializerConfig for JsonSerializerConfig {
+    fn build(&self) -> crate::Result<BoxedSerializer> {
+        Ok(Box::new(JsonSerializer))
+    }
+}
+
+/// Serializer that converts an `Event` to bytes by extracting the message key.
+#[derive(Debug, Clone)]
+pub struct JsonSerializer;
+
+impl JsonSerializer {
+    /// Creates a new `JsonSerializer`.
+    pub const fn new() -> Self {
+        Self
+    }
+}
+
+impl Encoder<Event> for JsonSerializer {
+    type Error = crate::Error;
+
+    fn encode(&mut self, event: Event, buffer: &mut bytes::BytesMut) -> Result<(), Self::Error> {
+        let json = match event {
+            Event::Log(log) => serde_json::to_vec(&log),
+            Event::Metric(metric) => serde_json::to_vec(&metric),
+        }?;
+
+        buffer.put(json.as_slice());
+
+        Ok(())
     }
 }
 

@@ -12,7 +12,7 @@ mod ready_frames;
 pub use decoding::Decoder;
 pub use format::{
     BytesDeserializer, BytesDeserializerConfig, JsonDeserializer, JsonDeserializerConfig,
-    TextSerializer, TextSerializerConfig,
+    JsonSerializer, JsonSerializerConfig, TextSerializer, TextSerializerConfig,
 };
 #[cfg(feature = "sources-syslog")]
 pub use format::{SyslogDeserializer, SyslogDeserializerConfig};
