@@ -3,11 +3,41 @@ use serde::{Deserialize, Serialize};
 #[cfg(unix)]
 use crate::sinks::util::unix::UnixSinkConfig;
 use crate::{
+    codecs::{
+        encoding::{self, FramingConfig, SerializerConfig},
+        JsonSerializerConfig, NewlineDelimitedEncoder, TextSerializerConfig,
+    },
     config::{DataType, GenerateConfig, SinkConfig, SinkContext, SinkDescription},
     sinks::util::{
-        encode_log, encoding::EncodingConfig, tcp::TcpSinkConfig, udp::UdpSinkConfig, Encoding,
+        encoding::{EncodingConfig, EncodingConfigAdapter, EncodingConfigMigrator},
+        tcp::TcpSinkConfig,
+        udp::UdpSinkConfig,
+        Encoding,
     },
 };
+use bytes::BytesMut;
+use tokio_util::codec::Encoder;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Migrator;
+
+impl EncodingConfigMigrator for Migrator {
+    type Codec = Encoding;
+
+    fn migrate(
+        codec: &Self::Codec,
+    ) -> (
+        Option<Box<dyn FramingConfig>>,
+        Option<Box<dyn SerializerConfig>>,
+    ) {
+        let framing = None;
+        let serializer = Some(match codec {
+            Encoding::Text => Box::new(TextSerializerConfig::new()) as _,
+            Encoding::Json => Box::new(JsonSerializerConfig::new()) as _,
+        });
+        (framing, serializer)
+    }
+}
 
 #[derive(Deserialize, Serialize, Debug)]
 // TODO: add back when serde-rs/serde#1358 is addressed
@@ -15,7 +45,8 @@ use crate::{
 pub struct SocketSinkConfig {
     #[serde(flatten)]
     pub mode: Mode,
-    pub encoding: EncodingConfig<Encoding>,
+    #[serde(flatten)]
+    pub encoding: EncodingConfigAdapter<EncodingConfig<Encoding>, Migrator>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -43,8 +74,11 @@ impl GenerateConfig for SocketSinkConfig {
 }
 
 impl SocketSinkConfig {
-    pub const fn new(mode: Mode, encoding: EncodingConfig<Encoding>) -> Self {
-        SocketSinkConfig { mode, encoding }
+    pub fn new(mode: Mode, encoding: EncodingConfig<Encoding>) -> Self {
+        SocketSinkConfig {
+            mode,
+            encoding: EncodingConfigAdapter::legacy(encoding, Migrator),
+        }
     }
 
     pub fn make_basic_tcp_config(address: String) -> Self {
@@ -63,7 +97,23 @@ impl SinkConfig for SocketSinkConfig {
         cx: SinkContext,
     ) -> crate::Result<(super::VectorSink, super::Healthcheck)> {
         let encoding = self.encoding.clone();
-        let encode_event = move |event| encode_log(event, &encoding);
+        let transformer = encoding.transformer();
+        let (framer, serializer) = encoding.encoding()?;
+        let framer = framer.unwrap_or_else(|| Box::new(NewlineDelimitedEncoder::new()));
+        let serializer = match serializer {
+            Some(serializer) => serializer,
+            None => return Err("Missing 'encoding' configuration.".into()),
+        };
+        let encoder = encoding::Encoder::new(framer, serializer);
+        let encode_event = move |mut event| {
+            transformer.transform(&mut event);
+            let mut encoder = encoder.clone();
+            let mut buffer = BytesMut::new();
+            encoder
+                .encode(event, &mut buffer)
+                .ok()
+                .map(|_| buffer.freeze())
+        };
         match &self.mode {
             Mode::Tcp(config) => config.build(cx, encode_event),
             Mode::Udp(config) => config.build(cx, encode_event),
@@ -114,7 +164,7 @@ mod test {
 
         let config = SocketSinkConfig {
             mode: Mode::Udp(UdpSinkConfig::from_address(addr.to_string())),
-            encoding: Encoding::Json.into(),
+            encoding: EncodingConfigAdapter::new(None, Some(Box::new(JsonSerializerConfig::new()))),
         };
         let context = SinkContext::new_test();
         let (sink, _healthcheck) = config.build(context).await.unwrap();
@@ -156,7 +206,7 @@ mod test {
         let addr = next_addr();
         let config = SocketSinkConfig {
             mode: Mode::Tcp(TcpSinkConfig::from_address(addr.to_string())),
-            encoding: Encoding::Json.into(),
+            encoding: EncodingConfigAdapter::new(None, Some(Box::new(JsonSerializerConfig::new()))),
         };
 
         let context = SinkContext::new_test();
@@ -345,7 +395,7 @@ mod test {
         let addr = next_addr();
         let config = SocketSinkConfig {
             mode: Mode::Tcp(TcpSinkConfig::from_address(addr.to_string())),
-            encoding: Encoding::Text.into(),
+            encoding: EncodingConfigAdapter::new(None, Some(Box::new(TextSerializerConfig::new()))),
         };
 
         let context = SinkContext::new_test();
